@@ -1,6 +1,5 @@
 import pandas as pd
 import numpy as np
-import pickle
 from .preprocessor import DataPreprocessor, clean_data
 from .models import ModelTrainer
 from .collector import DataCollector
@@ -78,26 +77,11 @@ class MLPipeline:
                 }
             }
 
-            model_scores = self.model_trainer.train_all_models(X_train, y_train, X_test, y_test, cv=self.config.CV_FOLDS,
-                                                               tune_hyperparams=False, **model_params)
+            self.model_trainer.train_all_models(X_train, y_train, X_test, y_test, cv=self.config.CV_FOLDS,
+                                               tune_hyperparams=False, **model_params)
 
-            best_model_name = None
-            for model_name, scores in model_scores.items():
-                if 'error' not in scores:
-                    best_model_name = model_name
-                    break
-
-            if best_model_name is None: raise ValueError("No valid model found after training")
-
-            best_metrics = model_scores[best_model_name]
-            best_model = best_metrics.get('model')
-            version_id = self.model_storage.save_model(
-                model=best_model,
-                model_name=best_model_name,
-                metrics={k: v for k, v in best_metrics.items() if k != 'model'},
-                preprocessor=self.preprocessor,
-                version_notes="Initial model training"
-            )
+            version_id = self.model_trainer.save_final_model(self.model_storage, preprocessor=self.preprocessor, version_notes="Initial model training")
+            best_model_name, best_metrics = self.model_trainer.select_best_model()
 
             self.is_trained = True
             self.current_model_version = version_id
@@ -150,24 +134,13 @@ class MLPipeline:
                 }
             }
 
-            model_scores = self.model_trainer.train_all_models(X_train, y_train, X_test, y_test, cv=self.config.CV_FOLDS,
+            self.model_trainer.train_all_models(X_train, y_train, X_test, y_test, cv=self.config.CV_FOLDS,
                                                                tune_hyperparams=False, **model_params)
 
-            best_model_name = None
-            for model_name, scores in model_scores.items():
-                if 'error' not in scores:
-                    best_model_name = model_name
-                    break
-
-            if best_model_name is None: raise ValueError("No valid model found after training")
-
-
-            best_metrics = model_scores[best_model_name]
+            best_model_name, best_metrics = self.model_trainer.select_best_model()
             degradation_report = {}
-            version_id = self.model_storage.save_model(
-                model=best_metrics.get('model'),
-                model_name=best_model_name,
-                metrics={k: v for k, v in best_metrics.items() if k != 'model'},
+            version_id = self.model_trainer.save_final_model(
+                self.model_storage,
                 preprocessor=self.preprocessor,
                 version_notes="Model update"
             )

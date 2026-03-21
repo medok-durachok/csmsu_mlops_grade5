@@ -108,3 +108,40 @@ class ModelTrainer:
         if model is None: raise ValueError(f"Model {model_name} not found. Train it first.")
 
         return model.predict(X)
+
+
+    def select_best_model(self, metric='r2', higher_is_better=True):
+        best_model_name = None
+        best_score = -float('inf') if higher_is_better else float('inf')
+
+        for model_name, scores in self.model_scores.items():
+            if 'error' in scores: continue
+
+            if metric in scores:
+                score = scores[metric]
+                if (higher_is_better and score > best_score) or (not higher_is_better and score < best_score):
+                    best_score = score
+                    best_model_name = model_name
+
+        if best_model_name is None: raise ValueError("No valid model found with the specified metric")
+        return best_model_name, self.model_scores[best_model_name]
+
+    def save_final_model(self, model_storage, model_name=None, preprocessor=None, version_notes=""):
+        if model_name is None:
+            model_name, scores = self.select_best_model()
+        elif model_name not in self.model_scores or 'error' in self.model_scores[model_name]:
+            raise ValueError(f"Model {model_name} not found or has errors")
+        else:
+            scores = self.model_scores[model_name]
+
+        model = scores['model']
+        metrics = {k: v for k, v in scores.items() if k != 'model'}
+
+        version_id = model_storage.save_model(
+            model=model,
+            model_name=model_name,
+            metrics=metrics,
+            preprocessor=preprocessor,
+            version_notes=version_notes
+        )
+        return version_id, model_name, metrics
