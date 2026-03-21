@@ -7,6 +7,7 @@ from .association_rules import AprioriRulesMiner
 from .model_storage import ModelStorage, QualityControl
 from .utils import Timer
 from sklearn.model_selection import train_test_split
+from .dq import basic_dq_report
 
 
 class MLPipeline:
@@ -44,6 +45,12 @@ class MLPipeline:
 
     def _prepare_data(self, df, fit_preprocessor=True):
         target_values = df[self.target_col] if self.target_col in df.columns else None
+
+        dq_report = basic_dq_report(df)
+        print(f"Data Quality Report:")
+        print(f"  Duplicate rate: {dq_report['duplicate_rate']:.4f}")
+        print(f"  Missing rate (avg): {np.mean(list(dq_report['missing_rate'].values())):.4f}")
+        print(f"  Constant columns: {len(dq_report['constant_cols'])}")
 
         df_clean = clean_data(
             df,
@@ -216,3 +223,30 @@ class MLPipeline:
 
         df_processed = self._prepare_data(df, fit_preprocessor=False)
         return df_processed
+
+    def predict(self, input_data):
+        if not self.is_trained: raise ValueError("No trained model found. Train or load a model first.")
+        model, _, _ = self.load_model()
+
+        if hasattr(model, 'feature_names_in_'):
+            expected_features = list(model.feature_names_in_)
+        else:
+            expected_features = ['SEX', 'INSR_TYPE', 'INSURED_VALUE', 'PREMIUM',
+                               'OBJECT_ID', 'PROD_YEAR', 'SEATS_NUM', 'CARRYING_CAPACITY', 'CCM_TON']
+
+        if isinstance(input_data, str):
+            input_data = pd.read_csv(input_data)
+        elif not isinstance(input_data, pd.DataFrame):
+            raise ValueError("input_data must be a DataFrame or path to CSV file")
+
+        if self.target_col in input_data.columns: input_data = input_data.drop(columns=[self.target_col])
+
+        available_features = [col for col in expected_features if col in input_data.columns]
+        missing_features = [col for col in expected_features if col not in input_data.columns]
+
+        if not available_features:  raise ValueError("No matching features found between model and input data")
+
+        input_data_filtered = input_data[available_features]
+        df_prepared = self._prepare_data(input_data_filtered, fit_preprocessor=False)
+        predictions = model.predict(df_prepared)
+        return predictions

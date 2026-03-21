@@ -1,5 +1,7 @@
 import argparse
 import sys
+import pandas as pd
+from datetime import datetime
 from src.model_storage import ModelStorage
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
@@ -42,7 +44,6 @@ def mode_update(args):
     except Exception as e:
         print(f"Error: {e}")
         sys.exit(1)
-
 
 def mode_summary():
     print("SUMMARY MODE")
@@ -94,6 +95,35 @@ def mode_summary():
     except Exception as e:
         print(f"Error checking models: {e}")
 
+def mode_inference(args):
+    print("INFERENCE MODE")
+    pipeline = MLPipeline(CFG)
+
+    if not pipeline.is_trained:
+        print("Error: No trained model found. Please run update mode first.")
+        sys.exit(1)
+
+    if not args.input_file:
+        print("Error: Input file required for inference mode. Use -input_file <path>")
+        sys.exit(1)
+
+    input_file = Path(args.input_file)
+    if not input_file.exists():
+        print(f"Error: Input file {input_file} not found")
+        sys.exit(1)
+
+    try:
+        predictions = pipeline.predict(str(input_file))
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_file = args.output_file or CFG.OUTPUTS_DIR / f"predictions_{timestamp}.csv"
+        pred_df = pd.DataFrame({'prediction': predictions})
+        pred_df.to_csv(output_file, index=False)
+        print(f"Predictions saved to: {output_file}")
+
+    except Exception as e:
+        print(f"Error during inference: {e}")
+        sys.exit(1)
+
 
 def main():
     setup_directories()
@@ -101,6 +131,8 @@ def main():
     parser = argparse.ArgumentParser(description="MLOPS System")
     parser.add_argument('-mode', required=True, choices=['update', 'summary', 'inference'], help='Operation mode')
     parser.add_argument('-chunk_size', help='Batch size for update mode')
+    parser.add_argument('-input_file', help='Input file for inference mode')
+    parser.add_argument('-output_file', help='Output file for inference mode')
     args = parser.parse_args()
 
     if args.mode == 'update':
@@ -108,7 +140,7 @@ def main():
     elif args.mode == 'summary':
         mode_summary()
     elif args.mode == 'inference':
-        pass
+        mode_inference(args)
     else:
         print("Invalid mode")
         sys.exit(1)
