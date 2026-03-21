@@ -165,4 +165,4 @@ class ModelTrainer:
             preprocessor=preprocessor,
             version_notes=version_notes
         )
-        return version_id, model_name, metrics
+        return version_id

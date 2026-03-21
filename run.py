@@ -39,7 +39,28 @@ def mode_update(args):
             result = pipeline.train_with_real_data(chunk_size=chunk_size)
 
         if result:
-            print(f"Success: {result}")
+            print("\n=== UPDATE RESULTS ===")
+            print(f"Status: {'SUCCESS' if result.get('success', False) else 'FAILED'}")
+
+            if result.get('retrained', False):
+                print(f"Model retrained: Yes")
+                print(f"Best model type: {result.get('best_model', 'unknown')}")
+                print(f"Version ID: {result.get('version_id', 'unknown')}")
+
+                if 'metrics' in result:
+                    print("Metrics:")
+                    for metric, value in result['metrics'].items():
+                        if isinstance(value, float):
+                            print(f"  {metric}: {value:.4f}")
+                        else:
+                            print(f"  {metric}: {value}")
+
+                print(f"Update time: {result.get('update_time', 0):.2f}s")
+                print(f"Samples processed: {result.get('n_samples', 0)}")
+            else:
+                print(f"Model retrained: No")
+                print(f"Reason: {result.get('reason', 'Unknown')}")
+
         else:
             print("No data available for processing")
 
