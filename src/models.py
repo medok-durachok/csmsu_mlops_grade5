@@ -12,6 +12,7 @@ class ModelTrainer:
         self.random_state = random_state
         self.models = {}
         self.model_scores = {}
+        self.force_model_type = None
 
     def _get_linear_regression(self, fit_intercept=True):
         return LinearRegression(fit_intercept=fit_intercept)
@@ -88,7 +89,11 @@ class ModelTrainer:
             'neural': model_params.get('neural', {})
         }
 
-        for model_name, params in model_configs.items():
+        if self.force_model_type:
+            if self.force_model_type not in model_configs: raise ValueError(f"Invalid model type: {self.force_model_type}. Must be one of: {list(model_configs.keys())}")
+
+            model_name = self.force_model_type
+            params = model_configs[model_name]
             try:
                 model = self.train_model(model_name, X_train, y_train, **params)
                 test_metrics = self.evaluate_model(model, X_test, y_test)
@@ -100,8 +105,22 @@ class ModelTrainer:
                     'model': model
                 }
 
-            except Exception as e:
-                self.model_scores[model_name] = {'error': str(e)}
+            except Exception as e: self.model_scores[model_name] = {'error': str(e)}
+        else:
+            for model_name, params in model_configs.items():
+                try:
+                    model = self.train_model(model_name, X_train, y_train, **params)
+                    test_metrics = self.evaluate_model(model, X_test, y_test)
+                    cv_metrics = self.cross_validate_model(model, X_train, y_train, cv=cv)
+
+                    self.model_scores[model_name] = {
+                        **test_metrics,
+                        **cv_metrics,
+                        'model': model
+                    }
+
+                except Exception as e:
+                    self.model_scores[model_name] = {'error': str(e)}
 
         return self.model_scores
 

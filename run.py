@@ -28,6 +28,8 @@ def mode_update(args):
     else:
         chunk_size = CFG.BATCH_SIZE
 
+    if args.model_type: pipeline.model_trainer.force_model_type = args.model_type
+
     try:
         if pipeline.is_trained:
             print("Updating existing model: ")
@@ -133,6 +135,7 @@ def main():
     parser.add_argument('-chunk_size', help='Batch size for update mode')
     parser.add_argument('-input_file', help='Input file for inference mode')
     parser.add_argument('-output_file', help='Output file for inference mode')
+    parser.add_argument('-model_type', choices=['linear', 'tree', 'neural'], help='Force specific model type for training')
     args = parser.parse_args()
 
     if args.mode == 'update':
