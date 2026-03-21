@@ -1,4 +1,5 @@
 import numpy as np
+from typing import Literal
 from sklearn.linear_model import LinearRegression
 from sklearn.tree import DecisionTreeRegressor
 from sklearn.neural_network import MLPRegressor
@@ -32,11 +33,12 @@ class ModelTrainer:
         valid_solvers = ["lbfgs", "sgd", "adam"]
         if solver not in valid_solvers:
             solver = "adam"
+        solver_literal: Literal["lbfgs", "sgd", "adam"] = solver  # type: ignore
         return MLPRegressor(
             hidden_layer_sizes=hidden_layer_sizes,
             max_iter=max_iter,
             alpha=alpha,
-            solver=solver,
+            solver=solver_literal,
             random_state=self.random_state,
             early_stopping=True,
             validation_fraction=0.1

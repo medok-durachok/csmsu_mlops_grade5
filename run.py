@@ -1,5 +1,6 @@
 import argparse
 import sys
+from src.model_storage import ModelStorage
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 from config import CFG
@@ -43,7 +44,7 @@ def mode_update(args):
         sys.exit(1)
 
 
-def mode_summary(args):
+def mode_summary():
     print("SUMMARY MODE")
     pipeline = MLPipeline(CFG)
 
@@ -53,11 +54,45 @@ def mode_summary(args):
 
         try:
             _, _, metadata = pipeline.load_model()
-            print(f"Model metadata: {metadata}")
-        except:
-            print("Could not load model metadata")
+            print(f"  Model Name: {metadata.get('model_name', 'unknown')}")
+            print(f"  Version ID: {metadata.get('version_id', 'unknown')}")
+            print()
+
+            if 'metrics' in metadata:
+                print("Model Metrics:")
+                metrics = metadata['metrics']
+                for metric_name, metric_value in metrics.items():
+                    if isinstance(metric_value, float):
+                        print(f"  {metric_name}: {metric_value:.4f}")
+                    else:
+                        print(f"  {metric_name}: {metric_value}")
+                print()
+        except Exception as e:
+            print(f"Could not load current model metadata: {e}")
     else:
-        print("Pipeline is not trained")
+        print("Pipeline is not trained yet")
+    print()
+
+    try:
+        model_storage = ModelStorage(storage_dir=str(CFG.MODELS_DIR))
+        if model_storage.metadata and model_storage.metadata.get("models"):
+            models_info = model_storage.metadata["models"]
+            for version_id in sorted(models_info.keys(), reverse=True):
+                info = models_info[version_id]
+                print(f"\nModel: {version_id}")
+
+                if 'metrics' in info:
+                    metrics = info['metrics']
+                    print(f"  Metrics:")
+                    for metric_name, metric_value in metrics.items():
+                        if isinstance(metric_value, float):
+                            print(f"    {metric_name}: {metric_value:.4f}")
+                        else:
+                            print(f"    {metric_name}: {metric_value}")
+        else:
+            print("No trained models found in storage")
+    except Exception as e:
+        print(f"Error checking models: {e}")
 
 
 def main():
@@ -71,7 +106,7 @@ def main():
     if args.mode == 'update':
         mode_update(args)
     elif args.mode == 'summary':
-        mode_summary(args)
+        mode_summary()
     elif args.mode == 'inference':
         pass
     else:

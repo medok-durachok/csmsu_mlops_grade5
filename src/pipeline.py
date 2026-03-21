@@ -24,6 +24,16 @@ class MLPipeline:
         self.model_storage = ModelStorage(storage_dir=config.MODELS_DIR)
         self.quality_control = QualityControl(self.model_storage)
 
+        if self.model_storage.metadata and self.model_storage.metadata.get("models"):
+            models_info = self.model_storage.metadata["models"]
+            if models_info:
+                self.is_trained = True
+                if self.model_storage.metadata.get("current_version"):
+                    self.current_model_version = self.model_storage.metadata["current_version"]
+                else:
+                    latest_version = max(models_info.keys(), key=lambda k: models_info[k].get("saved_at", ""))
+                    self.current_model_version = latest_version
+
     def _split_data(self, df, test_size=0.2):
         if self.target_col not in df.columns: raise ValueError(f"Target column {self.target_col} not found")
 
