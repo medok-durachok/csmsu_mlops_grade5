@@ -52,6 +52,11 @@ class DataPreprocessor:
         return self
 
     def transform(self, df):
+        if hasattr(self, 'feature_names') and self.feature_names:
+            available_features = [col for col in self.feature_names if col in df.columns]
+            if not available_features: raise ValueError("No matching features found between training and inference data")
+            df = df[available_features]
+
         df_transformed = df.copy()
 
         for col in self.numeric_cols:
@@ -78,7 +83,8 @@ class DataPreprocessor:
 
         if self.numeric_cols:
             numeric_data = df_transformed[self.numeric_cols]
-            df_transformed[self.numeric_cols] = self.scaler.transform(numeric_data)
+            scaled_values = self.scaler.transform(numeric_data.values)
+            df_transformed[self.numeric_cols] = pd.DataFrame(scaled_values, columns=self.numeric_cols, index=df_transformed.index)
 
         return df_transformed
 

@@ -1,4 +1,5 @@
 import numpy as np
+from typing import Literal
 from sklearn.linear_model import LinearRegression
 from sklearn.tree import DecisionTreeRegressor
 from sklearn.neural_network import MLPRegressor
@@ -11,6 +12,7 @@ class ModelTrainer:
         self.random_state = random_state
         self.models = {}
         self.model_scores = {}
+        self.force_model_type = None
 
     def _get_linear_regression(self, fit_intercept=True):
         return LinearRegression(fit_intercept=fit_intercept)
@@ -29,11 +31,15 @@ class ModelTrainer:
                                max_iter=500,
                                alpha=0.0001,
                                solver="adam"):
+        valid_solvers = ["lbfgs", "sgd", "adam"]
+        if solver not in valid_solvers:
+            solver = "adam"
+        solver_literal: Literal["lbfgs", "sgd", "adam"] = solver  # type: ignore
         return MLPRegressor(
             hidden_layer_sizes=hidden_layer_sizes,
             max_iter=max_iter,
             alpha=alpha,
-            solver=solver,
+            solver=solver_literal,
             random_state=self.random_state,
             early_stopping=True,
             validation_fraction=0.1
@@ -83,7 +89,11 @@ class ModelTrainer:
             'neural': model_params.get('neural', {})
         }
 
-        for model_name, params in model_configs.items():
+        if self.force_model_type:
+            if self.force_model_type not in model_configs: raise ValueError(f"Invalid model type: {self.force_model_type}. Must be one of: {list(model_configs.keys())}")
+
+            model_name = self.force_model_type
+            params = model_configs[model_name]
             try:
                 model = self.train_model(model_name, X_train, y_train, **params)
                 test_metrics = self.evaluate_model(model, X_test, y_test)
@@ -95,8 +105,22 @@ class ModelTrainer:
                     'model': model
                 }
 
-            except Exception as e:
-                self.model_scores[model_name] = {'error': str(e)}
+            except Exception as e: self.model_scores[model_name] = {'error': str(e)}
+        else:
+            for model_name, params in model_configs.items():
+                try:
+                    model = self.train_model(model_name, X_train, y_train, **params)
+                    test_metrics = self.evaluate_model(model, X_test, y_test)
+                    cv_metrics = self.cross_validate_model(model, X_train, y_train, cv=cv)
+
+                    self.model_scores[model_name] = {
+                        **test_metrics,
+                        **cv_metrics,
+                        'model': model
+                    }
+
+                except Exception as e:
+                    self.model_scores[model_name] = {'error': str(e)}
 
         return self.model_scores
 
@@ -105,3 +129,40 @@ class ModelTrainer:
         if model is None: raise ValueError(f"Model {model_name} not found. Train it first.")
 
         return model.predict(X)
+
+
+    def select_best_model(self, metric='r2', higher_is_better=True):
+        best_model_name = None
+        best_score = -float('inf') if higher_is_better else float('inf')
+
+        for model_name, scores in self.model_scores.items():
+            if 'error' in scores: continue
+
+            if metric in scores:
+                score = scores[metric]
+                if (higher_is_better and score > best_score) or (not higher_is_better and score < best_score):
+                    best_score = score
+                    best_model_name = model_name
+
+        if best_model_name is None: raise ValueError("No valid model found with the specified metric")
+        return best_model_name, self.model_scores[best_model_name]
+
+    def save_final_model(self, model_storage, model_name=None, preprocessor=None, version_notes=""):
+        if model_name is None:
+            model_name, scores = self.select_best_model()
+        elif model_name not in self.model_scores or 'error' in self.model_scores[model_name]:
+            raise ValueError(f"Model {model_name} not found or has errors")
+        else:
+            scores = self.model_scores[model_name]
+
+        model = scores['model']
+        metrics = {k: v for k, v in scores.items() if k != 'model'}
+
+        version_id = model_storage.save_model(
+            model=model,
+            model_name=model_name,
+            metrics=metrics,
+            preprocessor=preprocessor,
+            version_notes=version_notes
+        )
+        return version_id
