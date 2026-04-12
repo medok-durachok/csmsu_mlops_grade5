@@ -8,9 +8,6 @@ on:
 jobs:
   train:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: csmsu_mlops_grade5
 
     steps:
       - uses: actions/checkout@v4
@@ -30,4 +27,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: training-logs
-          path: csmsu_mlops_grade5/training.log
+          path: training.log
