@@ -1,4 +1,4 @@
-name: ML Pipeline CI/CD
+name: "1. basic -- single run"
 
 on:
   push:
