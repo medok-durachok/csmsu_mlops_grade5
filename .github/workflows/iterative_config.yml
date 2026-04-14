@@ -1,0 +1,39 @@
+name: "2. iterative -- N training iterations"
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+env:
+  NUM_ITERATIONS: 3
+  CHUNK_SIZE: 5000
+
+jobs:
+  train:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run ${{ env.NUM_ITERATIONS }} training iterations
+        run: |
+          for i in $(seq 1 ${{ env.NUM_ITERATIONS }}); do
+            echo "--- Iteration $i / ${{ env.NUM_ITERATIONS }} ---" | tee -a training.log
+            python run.py -mode update -chunk_size ${{ env.CHUNK_SIZE }} 2>&1 | tee -a training.log
+            echo "" | tee -a training.log
+          done
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: training-logs
+          path: training.log
