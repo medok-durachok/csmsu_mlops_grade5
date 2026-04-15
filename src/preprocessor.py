@@ -92,12 +92,15 @@ class DataPreprocessor:
         return self.fit(df).transform(df)
 
 
-def clean_data(df,max_missing_rate = 0.6, max_duplicate_rate = 0.2, apply_rules = False, rules_miner = None):
+def clean_data(df,max_missing_rate = 0.6, max_duplicate_rate = 0.2, apply_rules = False, rules_miner = None, target_col=None):
     initial_rows = len(df)
     initial_cols = len(df.columns)
 
     missing_rates = df.isna().mean()
     cols_to_drop = missing_rates[missing_rates > max_missing_rate].index.tolist()
+
+    if target_col and target_col in cols_to_drop:
+        cols_to_drop.remove(target_col)
 
     if cols_to_drop: df = df.drop(columns=cols_to_drop)
 
