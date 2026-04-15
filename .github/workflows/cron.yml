@@ -1,0 +1,59 @@
+name: "3. cron training"
+
+on:
+  schedule:
+    - cron: '0 3 * * 1'
+  workflow_dispatch:
+
+env:
+  CHUNK_SIZE: 5000
+
+jobs:
+  train:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Restore model artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            models/
+            data/raw/
+            data/incoming/*.processed
+          key: ml-model-${{ github.run_number }}
+          restore-keys: ml-model-
+
+      - name: Run incremental training
+        run: python run.py -mode update -chunk_size ${{ env.CHUNK_SIZE }} 2>&1 | tee training.log
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: training-logs-${{ github.run_number }}
+          path: training.log
+
+      - name: Upload model
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: model-${{ github.run_number }}
+          path: models/
+
+      - name: Upload collector state
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: collector-state-${{ github.run_number }}
+          path: |
+            data/raw/
+            data/incoming/*.processed
