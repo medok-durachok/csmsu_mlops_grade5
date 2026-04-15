@@ -44,7 +44,13 @@ class MLPipeline:
         return X_train, X_test, y_train, y_test
 
     def _prepare_data(self, df, fit_preprocessor=True):
-        target_values = df[self.target_col] if self.target_col in df.columns else None
+        if self.target_col in df.columns:
+            df = df.dropna(subset=[self.target_col])
+
+        if df.empty:
+            raise ValueError(f"No data with valid target column {self.target_col} found")
+
+        target_values = df[self.target_col].copy() if self.target_col in df.columns else None
 
         dq_report = basic_dq_report(df)
         print(f"Data Quality Report:")
@@ -57,16 +63,17 @@ class MLPipeline:
             max_missing_rate=self.config.MAX_MISSING_RATE,
             max_duplicate_rate=self.config.MAX_DUPLICATE_RATE,
             apply_rules=self.rules_fitted,
-            rules_miner=self.rules_miner if self.rules_fitted else None
+            rules_miner=self.rules_miner if self.rules_fitted else None,
+            target_col=self.target_col
         )
-
-        if target_values is not None and self.target_col not in df_clean.columns: df_clean[self.target_col] = target_values
-
         df_engineered = df_clean
         if fit_preprocessor:
             df_preprocessed = self.preprocessor.fit_transform(df_engineered)
         else:
             df_preprocessed = self.preprocessor.transform(df_engineered)
+
+        if target_values is not None:
+            df_preprocessed[self.target_col] = target_values.values
 
         numeric_cols = df_preprocessed.select_dtypes(include=[np.number]).columns.tolist()
         df_final = df_preprocessed[numeric_cols].fillna(0)
