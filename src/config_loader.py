@@ -1,117 +1,61 @@
-import pandas as pd
+import yaml
 from pathlib import Path
-from .utils import now_tag, dump_json
-from .config_loader import DataCollectionConfigLoader
+from typing import Dict, Any
 
-class DataCollector:
-    def __init__(self, main_data_file=None, raw_dir=None, config_path="data_collection_config.yaml"):
-        try:
-            self.dc_config = DataCollectionConfigLoader(config_path)
-            self.use_config = True
-        except (FileNotFoundError, ValueError):
-            self.dc_config = None
-            self.use_config = False
 
-        if self.use_config and self.dc_config:
-            self.main_data_file = Path(self.dc_config.main_file) if main_data_file is None else Path(main_data_file)
-            self.raw_dir = Path(self.dc_config.raw_dir) if raw_dir is None else Path(raw_dir)
-            self.batch_size = self.dc_config.batch_size
-            self.collection_mode = self.dc_config.collection_mode
-            self.random_seed = self.dc_config.random_seed
-            self.log_progress = self.dc_config.log_progress
-            self.save_metadata = self.dc_config.save_metadata
-        else:
-            self.main_data_file = Path(main_data_file) if main_data_file else Path("motor_data14-2018.csv")
-            self.raw_dir = Path(raw_dir) if raw_dir else Path("data/raw")
-            self.batch_size = 10000
-            self.collection_mode = "sequential"
-            self.random_seed = 42
-            self.log_progress = True
-            self.save_metadata = True
+class DataCollectionConfigLoader:
+    def __init__(self, config_path = "data_collection_config.yaml"):
+        self.config_path = Path(config_path)
+        self.config = self._load_config()
 
-        self.raw_dir.mkdir(parents=True, exist_ok=True)
-        self.current_row = 0
-        self.processed_chunks = set()
-        self.total_rows = self._get_total_rows()
-        self.batches_collected = 0
+    def _load_config(self):
+        if not self.config_path.exists():
+            raise FileNotFoundError(f"Configuration file not found: {self.config_path}")
 
-    def get_next_batch(self, chunk_size=None):
-        chunk_size = chunk_size or self.batch_size
-        if not self.main_data_file.exists():
-            return None, None
+        with open(self.config_path, 'r', encoding='utf-8') as f:
+            full_config = yaml.safe_load(f)
 
-        try:
-            if self.current_row >= self.total_rows:
-                return None, None
+        if 'data_collection' not in full_config:
+            raise ValueError("Configuration must contain 'data_collection' section")
 
-            if self.collection_mode == "random":
-                df_full = pd.read_csv(self.main_data_file)
-                df = df_full.sample(n=min(chunk_size, len(df_full)), random_state=self.random_seed + self.batches_collected)
-                chunk_id = f"random_{self.batches_collected}_{chunk_size}"
+        return full_config['data_collection']
+
+    def get(self, key_path, default = None):
+        keys = key_path.split('.')
+        value = self.config
+
+        for key in keys:
+            if isinstance(value, dict) and key in value:
+                value = value[key]
             else:
-                df = pd.read_csv(self.main_data_file, skiprows=range(1, self.current_row + 1), nrows=chunk_size)
-                chunk_id = f"sequential_{self.current_row}_{self.current_row + chunk_size}"
-                self.current_row += chunk_size
+                return default
 
-            if chunk_id in self.processed_chunks:
-                return self.get_next_batch(chunk_size)
+        return value
 
-            self.processed_chunks.add(chunk_id)
-            self.batches_collected += 1
+    @property
+    def batch_size(self):
+        return self.get('batching.batch_size', 10000)
 
-            batch_id = now_tag()
-            raw_path = self.raw_dir / f"batch_{batch_id}.csv"
-            meta_path = self.raw_dir / f"batch_{batch_id}_meta.json"
+    @property
+    def collection_mode(self):
+        return self.get('strategy.mode', 'sequential')
 
-            df.to_csv(raw_path, index=False)
+    @property
+    def random_seed(self):
+        return self.get('strategy.random_seed', 42)
 
-            meta = {
-                "batch_id": batch_id,
-                "source_file": str(self.main_data_file),
-                "raw_path": str(raw_path),
-                "chunk_id": chunk_id,
-                "collection_mode": self.collection_mode,
-                "n_rows": int(df.shape[0]),
-                "n_cols": int(df.shape[1]),
-                "chunk_size": chunk_size,
-                "current_row": self.current_row,
-                "batches_collected": self.batches_collected,
-                "columns": list(df.columns),
-                "dtypes": {col: str(dtype) for col, dtype in df.dtypes.items()}
-            }
+    @property
+    def main_file(self):
+        return self.get('source.main_file', 'motor_data14-2018.csv')
 
-            if self.save_metadata:
-                dump_json(meta, meta_path)
+    @property
+    def raw_dir(self):
+        return self.get('storage.raw_dir', 'data/raw')
 
-            if self.log_progress and self.batches_collected % 1 == 0:
-                print(f"Collected batch {self.batches_collected}: {len(df)} rows")
+    @property
+    def save_metadata(self):
+        return self.get('metadata.save_metadata', True)
 
-            return df, meta
-
-        except Exception as e:
-            print(f"Error reading data file: {e}")
-            return None, None
-
-    def _get_total_rows(self):
-        if not self.main_data_file.exists():
-            return 0
-        try:
-            with open(self.main_data_file, 'r') as f:
-                return sum(1 for _ in f) - 1
-        except:
-            return 0
-
-    def reset(self):
-        self.current_row = 0
-        self.processed_chunks.clear()
-        self.batches_collected = 0
-
-    def get_status(self):
-        return {
-            "total_rows": self.total_rows,
-            "current_row": self.current_row,
-            "batches_collected": self.batches_collected,
-            "collection_mode": self.collection_mode,
-            "batch_size": self.batch_size,
-            "progress_percent": (self.current_row / self.total_rows * 100) if self.total_rows > 0 else 0
-        }
+    @property
+    def log_progress(self):
+        return self.get('monitoring.log_progress', True)
