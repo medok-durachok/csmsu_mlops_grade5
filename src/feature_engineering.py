@@ -45,12 +45,16 @@ class FeatureEngineer:
         df = df.copy()
 
         if 'PROD_YEAR' in df.columns and 'EFFECTIVE_YR' in df.columns:
-            df['vehicle_age'] = df['EFFECTIVE_YR'] - df['PROD_YEAR']
-            df['vehicle_age'] = df['vehicle_age'].clip(lower=0)
+            effective_yr_numeric = pd.to_numeric(df['EFFECTIVE_YR'], errors='coerce')
+            prod_year_numeric = pd.to_numeric(df['PROD_YEAR'], errors='coerce')
+            df['vehicle_age'] = effective_yr_numeric - prod_year_numeric
+            df['vehicle_age'] = df['vehicle_age'].fillna(0).clip(lower=0)
 
         if 'PROD_YEAR' in df.columns:
             current_year = datetime.now().year
-            df['years_since_production'] = current_year - df['PROD_YEAR']
+            prod_year_numeric = pd.to_numeric(df['PROD_YEAR'], errors='coerce')
+            df['years_since_production'] = current_year - prod_year_numeric
+            df['years_since_production'] = df['years_since_production'].fillna(0)
             df['is_new_vehicle'] = (df['years_since_production'] <= 1).astype(int)
             df['is_old_vehicle'] = (df['years_since_production'] >= 10).astype(int)
 
