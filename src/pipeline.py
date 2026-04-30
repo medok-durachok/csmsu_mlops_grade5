@@ -6,6 +6,8 @@ from .collector import DataCollector
 from .association_rules import AprioriRulesMiner
 from .model_storage import ModelStorage, QualityControl
 from .utils import Timer
+from .eda import AutoEDA
+from .feature_engineering import FeatureEngineer
 from sklearn.model_selection import train_test_split
 from .dq import basic_dq_report
 
@@ -24,6 +26,8 @@ class MLPipeline:
 
         self.model_storage = ModelStorage(storage_dir=config.MODELS_DIR)
         self.quality_control = QualityControl(self.model_storage)
+        self.eda = AutoEDA(output_dir=config.REPORTS_DIR / "eda")
+        self.feature_engineer = FeatureEngineer()
 
         if self.model_storage.metadata and self.model_storage.metadata.get("models"):
             models_info = self.model_storage.metadata["models"]
@@ -66,7 +70,12 @@ class MLPipeline:
             rules_miner=self.rules_miner if self.rules_fitted else None,
             target_col=self.target_col
         )
-        df_engineered = df_clean
+
+        df_engineered = self.feature_engineer.transform(df_clean, self.target_col)
+
+        if target_values is not None and self.target_col not in df_engineered.columns:
+            df_engineered[self.target_col] = target_values
+
         if fit_preprocessor:
             df_preprocessed = self.preprocessor.fit_transform(df_engineered)
         else:
@@ -81,6 +90,12 @@ class MLPipeline:
 
     def train_initial_model(self, df):
         print("Training model:")
+
+        print("Running EDA...")
+        eda_report = self.eda.analyze(df, self.target_col)
+        eda_path = self.eda.save_report()
+        eda_text_path = self.eda.save_text_report()
+        print(f"EDA reports saved: {eda_path.name}, {eda_text_path.name}")
 
         with Timer() as timer:
             df_prepared = self._prepare_data(df, fit_preprocessor=True)

@@ -1,0 +1,65 @@
+data_collection:
+  source:
+    main_file: "motor_data14-2018.csv"
+    encoding: "utf-8"
+    delimiter: ","
+
+  batching:
+    batch_size: 10000
+    min_batch_size: 1000
+    max_batch_size: 50000
+    overlap_rows: 0
+
+  strategy:
+    mode: "sequential"
+    random_seed: 42
+    shuffle_before_split: false
+    stratify_column: null
+    sample_fraction: 1.0
+
+  streaming:
+    enabled: true
+    buffer_size: 5000
+    prefetch_batches: 2
+
+  filtering:
+    enabled: true
+    min_target_coverage: 0.05
+    required_columns:
+      - "SEX"
+      - "INSR_TYPE"
+      - "INSURED_VALUE"
+      - "PREMIUM"
+      - "CLAIM_PAID"
+    drop_duplicates: true
+    remove_null_target: true
+
+  metadata:
+    save_metadata: true
+    metadata_format: "json"
+    include_statistics: true
+    include_dtypes: true
+    include_sample: false
+    sample_size: 100
+
+  storage:
+    raw_dir: "data/raw"
+    compression: null
+    save_format: "csv"
+    create_backup: false
+    backup_dir: "data/backups"
+
+  monitoring:
+    log_progress: true
+    log_interval: 1000
+    track_memory: true
+    alert_on_errors: true
+    save_collection_report: true
+
+  validation:
+    validate_schema: true
+    check_data_types: true
+    check_value_ranges: false
+    fail_on_validation_error: false
+    expected_columns: 16
+    expected_target_column: "CLAIM_PAID"
